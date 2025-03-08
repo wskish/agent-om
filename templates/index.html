@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Toolchat</title>
-    
+    <title>Agent OM</title>
+    <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
+
     <!-- Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -96,19 +97,55 @@
         
         // Function to add a new message
         addMessage(type, content, id) {
-            // If this is a continuation of an existing message, append to it
-            const existingMsg = this.messages.find(m => m.id === id);
-            if (existingMsg && (type === 'assistant' || type === existingMsg.type)) {
-                existingMsg.content += content;
+            // Additional safeguards for input values
+            type = String(type).trim();
+            id = String(id).trim();
+            content = String(content || '');
+            
+            console.log('Adding message:', { type, content: content.substring(0, 50), id });
+            console.log('Current messages length:', this.messages.length);
+            
+            // If this is a continuation of an existing message, update it properly for Alpine reactivity
+            const index = this.messages.findIndex(m => m.id === id);
+            if (index !== -1 && (type === 'assistant' || type === this.messages[index].type)) {
+                // Create a new object with updated content to trigger Alpine reactivity
+                const oldMsg = this.messages[index];
+                // For assistant messages, add newline between chunks if needed
+                const needsNewline = type === 'assistant' && oldMsg.content && 
+                                    !oldMsg.content.endsWith('\n') && content && !content.startsWith('\n');
+                const separator = needsNewline ? ' ' : '';
+                                    
+                const updatedMsg = {
+                    ...oldMsg,
+                    content: oldMsg.content + separator + content
+                };
+                
+                // Replace the message at the index
+                this.messages.splice(index, 1, updatedMsg);
+                
+                // Force reactivity by reassigning the array
+                this.messages = [...this.messages];
+                
+                console.log('Updated existing message, new content length:', updatedMsg.content.length);
             } else {
                 // Otherwise add as a new message
-                this.messages.push({ type, content, id });
+                const newMsg = { type, content, id };
+                this.messages = [...this.messages, newMsg]; // Force reactivity with new array
+                console.log('Added new message, new length:', this.messages.length);
             }
+            
+            // Debug message array
+            console.log('Messages array:', this.messages.map(m => ({ type: m.type, id: m.id, contentLength: m.content.length })));
             
             // Scroll to bottom after rendering
             this.$nextTick(() => {
                 const container = document.querySelector('.message-container');
-                container.scrollTop = container.scrollHeight;
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                    console.log('Scrolled to bottom');
+                } else {
+                    console.error('Message container not found');
+                }
             });
         },
         
@@ -116,18 +153,22 @@
         renderMarkdown(text) {
             if (!text) return '';
             
-            // Configure marked options
-            marked.setOptions({
-                highlight: function(code, lang) {
-                    const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-                    return hljs.highlight(code, { language }).value;
-                },
-                langPrefix: 'hljs language-',
-                gfm: true,
-                breaks: true
-            });
-            
-            return marked.parse(text);
+            try {
+                // Configure basic marked options
+                marked.setOptions({
+                    gfm: true,
+                    breaks: true
+                });
+                
+                return marked.parse(String(text));
+            } catch (error) {
+                console.error('Markdown rendering error:', error);
+                // Fallback: escape HTML and return as plain text
+                return String(text)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            }
         },
         
         // Function to send a message
@@ -154,9 +195,21 @@
             
             // Handle messages from the server
             evtSource.addEventListener('message', (event) => {
-                const data = JSON.parse(event.data);
-                currentMsgId = data.id;
-                this.addMessage(data.type, data.content, data.id);
+                console.log('SSE message received:', event.data);
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Parsed SSE data:', data);
+                    
+                    // Trim type and id to avoid whitespace issues
+                    const type = data.type.trim();
+                    const id = data.id.trim();
+                    const content = data.content;
+                    
+                    currentMsgId = id;
+                    this.addMessage(type, content, id);
+                } catch (error) {
+                    console.error('Error processing SSE message:', error, event.data);
+                }
             });
             
             // Handle stats updates
@@ -169,10 +222,21 @@
                 this.addMessage('stats', statsMsg, 'stats_' + Date.now());
             });
             
-            // Handle stream completion
-            evtSource.addEventListener('error', () => {
+            // Handle error and connection setup
+            evtSource.addEventListener('open', () => {
+                console.log('SSE connection opened');
+            });
+            
+            // Handle stream completion and errors
+            evtSource.addEventListener('error', (e) => {
+                console.error('SSE connection error:', e);
                 evtSource.close();
                 this.isProcessing = false;
+                
+                // Add error message if we didn't get any response
+                if (this.messages.length === 0 || this.messages[this.messages.length - 1].type === 'user') {
+                    this.addMessage('error', 'Error connecting to the server. Please try again.', 'error_' + Date.now());
+                }
             });
         },
         
@@ -282,75 +346,66 @@
         <div class="bg-white shadow rounded-lg p-4">
             <!-- Messages display area -->
             <div class="message-container mb-4 p-4 bg-gray-50 rounded-lg">
+                <!-- Debug counter -->
+                <div class="text-gray-400 text-xs mb-2">Messages: <span x-text="messages.length"></span></div>
+                
                 <!-- Message templates rendered by Alpine -->
-                <template x-for="(message, index) in messages" :key="index">
-                    <!-- User messages -->
-                    <div x-show="message.type === 'user'" class="mb-4">
-                        <div class="flex items-start">
-                            <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
-                                U
+                <template x-for="message in messages" :key="message.id">
+                    <div class="mb-4">
+                        <!-- SWITCHER -->
+                        <template x-if="message.type === 'user'">
+                            <div class="flex items-start">
+                                <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">U</div>
+                                <div class="ml-2 px-4 py-2 bg-blue-100 rounded-lg">
+                                    <p class="text-gray-800 whitespace-pre-wrap" x-text="message.content"></p>
+                                </div>
                             </div>
-                            <div class="ml-2 px-4 py-2 bg-blue-100 rounded-lg">
-                                <p class="text-gray-800 whitespace-pre-wrap" x-text="message.content"></p>
+                        </template>
+                        
+                        <template x-if="message.type === 'assistant'">
+                            <div class="flex items-start">
+                                <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-sm">A</div>
+                                <div class="ml-2 px-4 py-2 bg-gray-100 rounded-lg max-w-full">
+                                    <div class="text-gray-800 markdown-content" x-html="renderMarkdown(message.content)"></div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Assistant messages -->
-                    <div x-show="message.type === 'assistant'" class="mb-4">
-                        <div class="flex items-start">
-                            <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-sm">
-                                A
+                        </template>
+                        
+                        <template x-if="message.type === 'tool'">
+                            <div class="flex items-start">
+                                <div class="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-sm">T</div>
+                                <div class="ml-2 px-4 py-2 bg-purple-100 rounded-lg max-w-full">
+                                    <p class="text-purple-800 whitespace-pre-wrap font-mono text-sm" x-text="message.content"></p>
+                                </div>
                             </div>
-                            <div class="ml-2 px-4 py-2 bg-gray-100 rounded-lg max-w-full">
-                                <div class="text-gray-800 markdown-content" x-html="renderMarkdown(message.content)"></div>
+                        </template>
+                        
+                        <template x-if="message.type === 'thinking'">
+                            <div class="flex items-start">
+                                <div class="w-8 h-8 rounded-full bg-blue-400 flex items-center justify-center text-white font-bold text-sm">💭</div>
+                                <div class="ml-2 px-4 py-2 bg-blue-50 rounded-lg max-w-full">
+                                    <p class="text-blue-800 whitespace-pre-wrap font-mono text-sm italic" x-text="message.content"></p>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Tool messages -->
-                    <div x-show="message.type === 'tool'" class="mb-4">
-                        <div class="flex items-start">
-                            <div class="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-sm">
-                                T
+                        </template>
+                        
+                        <template x-if="message.type === 'stats'">
+                            <div class="w-full px-4 py-2 bg-gray-200 rounded-lg text-center">
+                                <p class="text-gray-600 text-sm" x-text="message.content"></p>
                             </div>
-                            <div class="ml-2 px-4 py-2 bg-purple-100 rounded-lg max-w-full">
-                                <p class="text-purple-800 whitespace-pre-wrap font-mono text-sm" x-text="message.content"></p>
+                        </template>
+                        
+                        <template x-if="message.type === 'system'">
+                            <div class="w-full px-4 py-2 bg-yellow-100 rounded-lg text-center">
+                                <p class="text-yellow-800 text-sm" x-text="message.content"></p>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Thinking messages -->
-                    <div x-show="message.type === 'thinking'" class="mb-4">
-                        <div class="flex items-start">
-                            <div class="w-8 h-8 rounded-full bg-blue-400 flex items-center justify-center text-white font-bold text-sm">
-                                💭
+                        </template>
+                        
+                        <template x-if="message.type === 'error'">
+                            <div class="w-full px-4 py-2 bg-red-100 rounded-lg text-center">
+                                <p class="text-red-800 text-sm" x-text="message.content"></p>
                             </div>
-                            <div class="ml-2 px-4 py-2 bg-blue-50 rounded-lg max-w-full">
-                                <p class="text-blue-800 whitespace-pre-wrap font-mono text-sm italic" x-text="message.content"></p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Stats messages -->
-                    <div x-show="message.type === 'stats'" class="mb-4">
-                        <div class="w-full px-4 py-2 bg-gray-200 rounded-lg text-center">
-                            <p class="text-gray-600 text-sm" x-text="message.content"></p>
-                        </div>
-                    </div>
-                    
-                    <!-- System messages -->
-                    <div x-show="message.type === 'system'" class="mb-4">
-                        <div class="w-full px-4 py-2 bg-yellow-100 rounded-lg text-center">
-                            <p class="text-yellow-800 text-sm" x-text="message.content"></p>
-                        </div>
-                    </div>
-                    
-                    <!-- Error messages -->
-                    <div x-show="message.type === 'error'" class="mb-4">
-                        <div class="w-full px-4 py-2 bg-red-100 rounded-lg text-center">
-                            <p class="text-red-800 text-sm" x-text="message.content"></p>
-                        </div>
+                        </template>
                     </div>
                 </template>
                 
@@ -363,6 +418,17 @@
                             <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
                         </div>
                     </div>
+                </div>
+                
+                <!-- Debug template: shows all messages regardless of type -->
+                <div x-show="messages.length > 0" class="border-t border-gray-200 mt-4 pt-4">
+                    <h4 class="text-xs font-bold text-gray-400 mb-2">DEBUG MESSAGE LIST:</h4>
+                    <template x-for="(message, i) in messages" :key="'debug-' + message.id">
+                        <div class="mb-2 text-xs">
+                            <span class="font-bold" x-text="i + ': ' + message.type"></span>
+                            <span x-text="' - ' + message.id + ' - ' + message.content.substring(0, 30) + '...'"></span>
+                        </div>
+                    </template>
                 </div>
                 
                 <!-- Empty state when no messages -->
