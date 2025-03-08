@@ -6,3 +6,6 @@ tool_example.py
 tool_exec.py
 tool_pdf_to_text.py
 tool_psql.py
+README-htmx.md
+templates/index.html
+main_htmx.py

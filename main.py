@@ -188,8 +188,26 @@ if __name__ == "__main__":
     from tool_exec import exec
     from tool_psql import psql
     from tool_pdf_to_text import pdf_to_text
+    from tool_bash import bash
+    from tool_globtool import globtool
+    from tool_greptool import greptool
+    from tool_ls import ls
+    from tool_view import view
+    from tool_edit import edit
+    from tool_replace import replace
     
-    toolfuncs = [exec, psql, pdf_to_text]
+    toolfuncs = [
+        exec, 
+        psql, 
+        pdf_to_text, 
+        bash, 
+        globtool, 
+        greptool, 
+        ls, 
+        view, 
+        edit, 
+        replace
+    ]
     for tool in toolfuncs:
         print_formatted_text(FormattedText([("fg:violet", "Available tool: " + tool.__name__)]))
     main(toolfuncs)
