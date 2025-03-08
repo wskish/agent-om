@@ -25,6 +25,12 @@ class ToolMessage(str):
     """
     pass
 
+class ThinkingMessage(str):
+    """
+    Used to mark thinking content from Claude models
+    """
+    pass
+
 # a tool function can raise ValueError with a helpful message to the model allow the model to retry the tool call
 ToolFunctionType = Callable[
     [Optional[BaseToolParam]],  # A tool function can take either no argument or one argument of type BaseToolParam

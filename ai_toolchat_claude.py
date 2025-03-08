@@ -5,7 +5,7 @@ from typing import Optional
 from loguru import logger
 import inspect
 import json
-from ai_toolchat import BaseToolParam, ToolMessage, ToolFunctionType, CompletionUsage, CompletionLog, CompletionLoggerFunctionType
+from ai_toolchat import BaseToolParam, ToolMessage, ThinkingMessage, ToolFunctionType, CompletionUsage, CompletionLog, CompletionLoggerFunctionType
 
 # Initialize client with API key from environment variable
 client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
@@ -72,6 +72,7 @@ async def toolchat( messages: list[dict],
     if 'claude-3-7-sonnet' in model and thinking_budget > 0:
         max_tokens = 64000
         thinking = {"type": "enabled", "budget_tokens": thinking_budget}
+        print(f"Thinking enabled with budget of {thinking_budget} tokens")
 
         
     while True:
@@ -125,8 +126,13 @@ async def toolchat( messages: list[dict],
                         content_blocks[event.index].text += event.delta.text
                         yield event.delta.text
                     elif hasattr(event.delta, 'thinking'):
-                        content_blocks[event.index].thinking += event.delta.thinking
-                        yield event.delta.thinking                        
+                        content_blocks[event.index].thinking += event.delta.thinking                        
+                        yield ThinkingMessage(event.delta.thinking)
+                    elif hasattr(event.delta, 'signature'):
+                        content_blocks[event.index].signature += event.delta.signature
+                    elif hasattr(event.delta, 'redacted_thinking'):
+                        content_blocks[event.index].redacted_thinking += event.delta.redacted_thinking
+                        yield ThinkingMessage('redacted-thoughts')
                     elif hasattr(event.delta, 'partial_json'):
                         content_blocks_json[event.index] += event.delta.partial_json
         except (BadRequestError, NotFoundError, TypeError) as e:

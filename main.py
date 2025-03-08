@@ -11,7 +11,7 @@ import ai_pricing
 from ai_toolchat import toolchat as openai_toolchat
 from ai_toolchat_claude import toolchat as claude_toolchat
 
-from ai_toolchat import ToolFunctionType, ToolMessage, CompletionLog
+from ai_toolchat import ToolFunctionType, ToolMessage, ThinkingMessage, CompletionLog
 
 MsgRoleType = Literal["system", "user", "assistant"]
 
@@ -153,10 +153,16 @@ def main(toolfuncs : list[ToolFunctionType]):
                 
             async for txt in toolchat_impl(**toolchat_kwargs):
                 if isinstance(txt, ToolMessage):
-                    txt = f"\033[35m→  {txt}\033[0m\n"
+                    txt = f"\033[35m→  {txt}\033[0m\n"  # Purple color for tool messages
+                    current_assistant_message += txt  # store this for reference
+                elif isinstance(txt, ThinkingMessage):
+                    txt = f"\033[34m{txt}\033[0m"  # Deep blue color for thinking messages
+                    # dont store this in the assistant message
+                else:
+                    current_assistant_message += txt  # store normal assistant output in message history
                 sys.stdout.write(txt)
                 sys.stdout.flush()
-                current_assistant_message += txt
+                
 
             messages.append(AssistantMessage(current_assistant_message))
 
