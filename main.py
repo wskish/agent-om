@@ -59,6 +59,8 @@ def main(toolfuncs : list[ToolFunctionType]):
 
     # Default model
     model = "claude-3-7-sonnet-20250219"
+    # Default thinking budget (only used with Claude models)
+    thinking_budget = 0
     
     print_formatted_text(FormattedText([("fg:violet", model)]))
 
@@ -88,6 +90,35 @@ def main(toolfuncs : list[ToolFunctionType]):
                 )
             # Skip adding /model to the conversation
             continue
+            
+        # Check if user wants to set thinking budget
+        if text.startswith('/thinking'):
+            try:
+                # Handle both "/thinking" and "/thinking <number>"
+                if text.strip() == '/thinking':
+                    new_budget = 1024  # Minimum budget
+                else:
+                    new_budget = int(text[len('/thinking '):].strip())
+                    # Ensure minimum budget of 1024
+                    if new_budget < 1024:
+                        new_budget = 1024
+                
+                thinking_budget = new_budget
+                if "claude" in model.lower():
+                    print_formatted_text(
+                        FormattedText([("fg:green", f"Thinking budget set to: {thinking_budget} tokens\n")])
+                    )
+                else:
+                    print_formatted_text(
+                        FormattedText([("fg:yellow", f"Note: Thinking budget only applies to Claude models. Current model: {model}\n")])
+                    )
+            except ValueError:
+                print_formatted_text(
+                    FormattedText([("fg:red", "Invalid thinking budget. Using minimum of 1024 tokens.\n")])
+                )
+                thinking_budget = 1024
+            # Skip adding /thinking to the conversation
+            continue
 
         try:
             user_message = UserMessage(text)
@@ -107,12 +138,20 @@ def main(toolfuncs : list[ToolFunctionType]):
             
         async def run_toolchat():
             current_assistant_message = ""
-            async for txt in toolchat_impl(
-                messages=[m.model_dump() for m in messages],
-                tools=toolfuncs,
-                model=model,
-                log_func=clog
-            ):
+            
+            # Prepare kwargs for toolchat
+            toolchat_kwargs = {
+                "messages": [m.model_dump() for m in messages],
+                "tools": toolfuncs,
+                "model": model,
+                "log_func": clog
+            }
+            
+            # Add thinking_budget for Claude models
+            if "claude" in model.lower() and thinking_budget > 0:
+                toolchat_kwargs["thinking_budget"] = thinking_budget
+                
+            async for txt in toolchat_impl(**toolchat_kwargs):
                 if isinstance(txt, ToolMessage):
                     txt = f"\033[35m→  {txt}\033[0m\n"
                 sys.stdout.write(txt)

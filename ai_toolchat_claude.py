@@ -72,7 +72,7 @@ async def toolchat( messages: list[dict],
     if 'claude-3-7-sonnet' in model and thinking_budget > 0:
         max_tokens = 64000
         thinking = {"type": "enabled", "budget_tokens": thinking_budget}
-        print(f"Thinking enabled with budget of {thinking_budget} tokens")
+
         
     while True:
         loops += 1
