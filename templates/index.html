@@ -109,8 +109,9 @@
             // If we receive an assistant message with the same ID as a thinking message,
             // we should create a new assistant message and keep the thinking message
             if (index !== -1 && this.messages[index].type === 'thinking' && type === 'assistant') {
-                // Create a new assistant message
-                const newMsg = { type, content, id: id + '_assistant' };
+                // Create a new assistant message with a guaranteed unique ID
+                const uniqueId = id + '_assistant_' + Date.now();
+                const newMsg = { type, content, id: uniqueId };
                 this.messages = [...this.messages, newMsg];
                 return;
             }

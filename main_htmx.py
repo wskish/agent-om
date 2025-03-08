@@ -96,6 +96,7 @@ async def stream_chat_response(user_message: str) -> AsyncGenerator[str, None]:
     
     # Create an accumulated response for chat history
     current_assistant_message = ""
+    thinking_occurred = False
     
     try:
         async for txt in toolchat_impl(**toolchat_kwargs):
@@ -103,21 +104,27 @@ async def stream_chat_response(user_message: str) -> AsyncGenerator[str, None]:
                 # Format tool messages
                 msg_type = "tool"
                 display_txt = str(txt)
+                # Tool messages get unique IDs
+                curr_id = f"tool_{uuid.uuid4().hex[:8]}"
             elif isinstance(txt, ThinkingMessage):
                 # Format thinking messages
                 msg_type = "thinking"
                 display_txt = str(txt)
+                thinking_occurred = True
+                curr_id = msg_id
             else:
                 # Regular assistant message
                 msg_type = "assistant"
                 display_txt = txt
                 current_assistant_message += txt  # Accumulate for history
+                # If we had thinking previously, use a distinct ID for assistant messages
+                curr_id = f"{msg_id}_assistant" if thinking_occurred else msg_id
             
             # Yield formatted SSE event
             data = json.dumps({
                 "type": msg_type,
                 "content": display_txt,
-                "id": msg_id
+                "id": curr_id
             })
             yield f"event: message\ndata: {data}\n\n"
             
