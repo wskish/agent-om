@@ -48,8 +48,8 @@ def check_duplicate_tools(toolspecs: list[dict]):
 async def toolchat( messages: list[dict],
                     tools: list[ToolFunctionType],
                     model: str,
-                    temperature: float = 0,
-                    log_func: Optional[CompletionLoggerFunctionType] = None):
+                    log_func: Optional[CompletionLoggerFunctionType] = None,
+                    thinking_budget: int = 0):
     """
     A streaming chat completion function that supports tool calls for Claude
     Emits a stream of chat completion messages while handling tool calls internally
@@ -66,6 +66,13 @@ async def toolchat( messages: list[dict],
     system_message = None
     if messages[0]['role'] == 'system':
         system_message = messages.pop(0)['content']
+
+    max_tokens = 8192
+    thinking = None
+    if 'claude-3-7-sonnet' in model and thinking_budget > 0:
+        max_tokens = 64000
+        thinking = {"type": "enabled", "budget_tokens": thinking_budget}
+        print(f"Thinking enabled with budget of {thinking_budget} tokens")
         
     while True:
         loops += 1
@@ -77,13 +84,22 @@ async def toolchat( messages: list[dict],
         content_blocks_json = []    
         usage = CompletionUsage(prompt_tokens=0, completion_tokens=0)
         try:
-            stream = await client.messages.create(  system=system_message,
-                                                    model=model,
-                                                    messages=messages,
-                                                    tools=toolspec,
-                                                    temperature=temperature,
-                                                    max_tokens=8192,
-                                                    stream=True)            
+            if thinking:
+                stream = await client.messages.create(  system=system_message,
+                                                        model=model,
+                                                        messages=messages,
+                                                        tools=toolspec,
+                                                        max_tokens=max_tokens,
+                                                        thinking=thinking,
+                                                        stream=True)            
+            else:
+                stream = await client.messages.create(  system=system_message,
+                                                        model=model,
+                                                        messages=messages,
+                                                        tools=toolspec,
+                                                        max_tokens=max_tokens,
+                                                        stream=True)            
+            
           
             async for event in stream:
                 #print(event)   # see below for example message stream
@@ -108,6 +124,9 @@ async def toolchat( messages: list[dict],
                     if hasattr(event.delta, 'text'):
                         content_blocks[event.index].text += event.delta.text
                         yield event.delta.text
+                    elif hasattr(event.delta, 'thinking'):
+                        content_blocks[event.index].thinking += event.delta.thinking
+                        yield event.delta.thinking                        
                     elif hasattr(event.delta, 'partial_json'):
                         content_blocks_json[event.index] += event.delta.partial_json
         except (BadRequestError, NotFoundError, TypeError) as e:
@@ -130,7 +149,7 @@ async def toolchat( messages: list[dict],
             log_func(CompletionLog( model=model,
                                     messages=messages,
                                     tools=toolspec,
-                                    temperature=temperature,
+                                    temperature=0,
                                     chat_completion=" ".join(textblocks),
                                     tool_completion=[t.model_dump() for t in tooluseblocks],
                                     usage=usage,

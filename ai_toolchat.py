@@ -97,7 +97,6 @@ def check_duplicate_tools(toolspecs : list[ChatCompletionToolParam]):
 async def toolchat(messages : list[ChatCompletionMessageParam],    # note: openai defines these input messages as typed dicts, not pydantic models
                    tools    : list[ToolFunctionType], 
                    model    : str,
-                   temperature : int = 0,
                    log_func : Optional[CompletionLoggerFunctionType] = None):
     """
     A streaming chat completion function that supports tool calls
@@ -131,7 +130,6 @@ async def toolchat(messages : list[ChatCompletionMessageParam],    # note: opena
                                                           messages=messages, 
                                                           tools=toolspec, 
                                                           stream=True, 
-                                                          temperature=temperature,
                                                           stream_options={"include_usage": True})                                                        
             async for chunk in stream:       
                 delta = chunk.choices[0].delta if chunk.choices else None
@@ -189,7 +187,7 @@ async def toolchat(messages : list[ChatCompletionMessageParam],    # note: opena
             log_func(CompletionLog(model=model, 
                                    messages=messages,
                                    tools=toolspec, 
-                                   temperature=temperature, 
+                                   temperature=0, 
                                    chat_completion=chat_response_content, 
                                    tool_completion=tool_calls,
                                    usage=usage,
