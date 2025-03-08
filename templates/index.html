@@ -89,7 +89,7 @@
         userMessage: '',
         isProcessing: false,
         messages: [],
-        toolInfo: {},
+        toolInfo: [],
         thinking: {{ thinking_budget }},
         model: '{{ model }}',
         sessionCost: '{{ session_cost }}',
@@ -147,9 +147,7 @@
             formData.append('message', message);
             
             // Set up the SSE connection
-            const evtSource = new EventSource('/chat/stream?' + new URLSearchParams({
-                message: message
-            }));
+            const evtSource = new EventSource(`/chat/stream?message=${encodeURIComponent(message)}`);
             
             // Current message being built
             let currentMsgId = null;
@@ -234,7 +232,7 @@
         fetch('/available-tools')
             .then(response => response.json())
             .then(data => {
-                toolInfo = data.tools;
+                this.toolInfo = data.tools;
             });
     ">
         <!-- Header with app title and controls -->

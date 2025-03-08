@@ -29,6 +29,8 @@ app = FastAPI()
 # Setup templates and static files
 templates = Jinja2Templates(directory="templates")
 os.makedirs("templates", exist_ok=True)  # Ensure directory exists
+os.makedirs("static", exist_ok=True)  # Ensure static directory exists
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # State for managing a single chat session
 class ChatState:
@@ -169,8 +171,8 @@ async def get_chat_page(request: Request):
         ]
     })
 
-@app.post("/chat/stream")
-async def stream_chat(message: str = Form(...)):
+@app.get("/chat/stream")
+async def stream_chat(message: str):
     """Stream chat responses as server-sent events."""
     return StreamingResponse(
         stream_chat_response(message),
