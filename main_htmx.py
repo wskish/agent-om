@@ -63,27 +63,20 @@ def choose_toolchat_impl(model_name: str):
 
 async def stream_chat_response(user_message: str) -> AsyncGenerator[str, None]:
     """Process user message and stream response chunks."""
-    print(f"[DEBUG] Received message: {user_message}")
-    print(f"[DEBUG] Current model: {chat_state.model}")
-    
     # Add user message to chat history
     chat_state.messages.append({"role": "user", "content": user_message})
-    print(f"[DEBUG] Messages count: {len(chat_state.messages)}")
     
     # Track usage for this exchange
     usage = []
     
     def clog(log: CompletionLog):
-        print(f"[DEBUG] Completion log received: {log}")
         usage.append(log.usage)
     
     # Choose the appropriate toolchat implementation
     toolchat_impl = choose_toolchat_impl(chat_state.model)
-    print(f"[DEBUG] Using toolchat implementation: {toolchat_impl.__name__}")
     
     # Message ID for the response
     msg_id = f"msg_{uuid.uuid4().hex[:12]}"
-    print(f"[DEBUG] Generated message ID: {msg_id}")
     
     # Prepare kwargs for toolchat
     toolchat_kwargs = {
@@ -101,25 +94,20 @@ async def stream_chat_response(user_message: str) -> AsyncGenerator[str, None]:
     current_assistant_message = ""
     
     try:
-        print(f"[DEBUG] Starting toolchat with kwargs: {toolchat_kwargs}")
         async for txt in toolchat_impl(**toolchat_kwargs):
-            print(f"[DEBUG] Received chunk type: {type(txt)}")
             if isinstance(txt, ToolMessage):
                 # Format tool messages
                 msg_type = "tool"
                 display_txt = str(txt)
-                print(f"[DEBUG] Tool message: {display_txt[:100]}...")
             elif isinstance(txt, ThinkingMessage):
                 # Format thinking messages
                 msg_type = "thinking"
                 display_txt = str(txt)
-                print(f"[DEBUG] Thinking message: {display_txt[:100]}...")
             else:
                 # Regular assistant message
                 msg_type = "assistant"
                 display_txt = txt
                 current_assistant_message += txt  # Accumulate for history
-                print(f"[DEBUG] Assistant message: {display_txt[:100]}...")
             
             # Yield formatted SSE event
             data = json.dumps({
@@ -127,9 +115,7 @@ async def stream_chat_response(user_message: str) -> AsyncGenerator[str, None]:
                 "content": display_txt,
                 "id": msg_id
             })
-            sse_data = f"event: message\ndata: {data}\n\n"
-            print(f"[DEBUG] Sending SSE: {sse_data[:100]}...")
-            yield sse_data
+            yield f"event: message\ndata: {data}\n\n"
             
             # Small delay for browser rendering
             await asyncio.sleep(0.01)
@@ -160,17 +146,12 @@ async def stream_chat_response(user_message: str) -> AsyncGenerator[str, None]:
             yield f"event: stats\ndata: {json.dumps(stats)}\n\n"
             
     except Exception as e:
-        print(f"[DEBUG] Exception occurred: {e}")
-        import traceback
-        print(f"[DEBUG] Traceback: {traceback.format_exc()}")
         error_data = json.dumps({
             "type": "error",
             "content": f"Error: {str(e)}",
             "id": msg_id
         })
-        error_sse = f"event: message\ndata: {error_data}\n\n"
-        print(f"[DEBUG] Sending error SSE: {error_sse}")
-        yield error_sse
+        yield f"event: message\ndata: {error_data}\n\n"
 
 @app.get("/")
 async def get_chat_page(request: Request):

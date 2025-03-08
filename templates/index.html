@@ -102,15 +102,12 @@
             id = String(id).trim();
             content = String(content || '');
             
-            console.log('Adding message:', { type, content: content.substring(0, 50), id });
-            console.log('Current messages length:', this.messages.length);
-            
             // If this is a continuation of an existing message, update it properly for Alpine reactivity
             const index = this.messages.findIndex(m => m.id === id);
             if (index !== -1 && (type === 'assistant' || type === this.messages[index].type)) {
                 // Create a new object with updated content to trigger Alpine reactivity
                 const oldMsg = this.messages[index];
-                // For assistant messages, add newline between chunks if needed
+                // For assistant messages, add space between chunks if needed
                 const needsNewline = type === 'assistant' && oldMsg.content && 
                                     !oldMsg.content.endsWith('\n') && content && !content.startsWith('\n');
                 const separator = needsNewline ? ' ' : '';
@@ -125,26 +122,17 @@
                 
                 // Force reactivity by reassigning the array
                 this.messages = [...this.messages];
-                
-                console.log('Updated existing message, new content length:', updatedMsg.content.length);
             } else {
                 // Otherwise add as a new message
                 const newMsg = { type, content, id };
                 this.messages = [...this.messages, newMsg]; // Force reactivity with new array
-                console.log('Added new message, new length:', this.messages.length);
             }
-            
-            // Debug message array
-            console.log('Messages array:', this.messages.map(m => ({ type: m.type, id: m.id, contentLength: m.content.length })));
             
             // Scroll to bottom after rendering
             this.$nextTick(() => {
                 const container = document.querySelector('.message-container');
                 if (container) {
                     container.scrollTop = container.scrollHeight;
-                    console.log('Scrolled to bottom');
-                } else {
-                    console.error('Message container not found');
                 }
             });
         },
@@ -162,7 +150,6 @@
                 
                 return marked.parse(String(text));
             } catch (error) {
-                console.error('Markdown rendering error:', error);
                 // Fallback: escape HTML and return as plain text
                 return String(text)
                     .replace(/&/g, '&amp;')
@@ -195,10 +182,8 @@
             
             // Handle messages from the server
             evtSource.addEventListener('message', (event) => {
-                console.log('SSE message received:', event.data);
                 try {
                     const data = JSON.parse(event.data);
-                    console.log('Parsed SSE data:', data);
                     
                     // Trim type and id to avoid whitespace issues
                     const type = data.type.trim();
@@ -208,7 +193,7 @@
                     currentMsgId = id;
                     this.addMessage(type, content, id);
                 } catch (error) {
-                    console.error('Error processing SSE message:', error, event.data);
+                    console.error('Error processing SSE message:', error);
                 }
             });
             
@@ -224,12 +209,11 @@
             
             // Handle error and connection setup
             evtSource.addEventListener('open', () => {
-                console.log('SSE connection opened');
+                // Connection opened
             });
             
             // Handle stream completion and errors
             evtSource.addEventListener('error', (e) => {
-                console.error('SSE connection error:', e);
                 evtSource.close();
                 this.isProcessing = false;
                 
@@ -346,8 +330,6 @@
         <div class="bg-white shadow rounded-lg p-4">
             <!-- Messages display area -->
             <div class="message-container mb-4 p-4 bg-gray-50 rounded-lg">
-                <!-- Debug counter -->
-                <div class="text-gray-400 text-xs mb-2">Messages: <span x-text="messages.length"></span></div>
                 
                 <!-- Message templates rendered by Alpine -->
                 <template x-for="message in messages" :key="message.id">
@@ -420,16 +402,6 @@
                     </div>
                 </div>
                 
-                <!-- Debug template: shows all messages regardless of type -->
-                <div x-show="messages.length > 0" class="border-t border-gray-200 mt-4 pt-4">
-                    <h4 class="text-xs font-bold text-gray-400 mb-2">DEBUG MESSAGE LIST:</h4>
-                    <template x-for="(message, i) in messages" :key="'debug-' + message.id">
-                        <div class="mb-2 text-xs">
-                            <span class="font-bold" x-text="i + ': ' + message.type"></span>
-                            <span x-text="' - ' + message.id + ' - ' + message.content.substring(0, 30) + '...'"></span>
-                        </div>
-                    </template>
-                </div>
                 
                 <!-- Empty state when no messages -->
                 <div x-show="messages.length === 0" class="flex flex-col items-center justify-center h-64 text-gray-500">
