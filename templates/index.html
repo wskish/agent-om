@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Toolchat</title>
+    
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    
+    <!-- Marked for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    
+    <!-- Custom styles -->
+    <style>
+        /* Message container styles */
+        .message-container {
+            max-height: calc(100vh - 220px);
+            overflow-y: auto;
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* Markdown styling */
+        .markdown-content pre {
+            background-color: #1e1e1e;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+        }
+        
+        .markdown-content code {
+            font-family: monospace;
+        }
+        
+        .markdown-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1rem 0;
+        }
+        
+        .markdown-content th, .markdown-content td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        
+        .markdown-content th {
+            background-color: #f2f2f2;
+        }
+        
+        /* Animation for loading */
+        @keyframes thinking {
+            0% { opacity: 0.3; }
+            50% { opacity: 1; }
+            100% { opacity: 0.3; }
+        }
+        
+        .thinking-animation {
+            animation: thinking 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto px-4 py-8" x-data="{
+        userMessage: '',
+        isProcessing: false,
+        messages: [],
+        toolInfo: {},
+        thinking: {{ thinking_budget }},
+        model: '{{ model }}',
+        sessionCost: '{{ session_cost }}',
+        
+        // Function to add a new message
+        addMessage(type, content, id) {
+            // If this is a continuation of an existing message, append to it
+            const existingMsg = this.messages.find(m => m.id === id);
+            if (existingMsg && (type === 'assistant' || type === existingMsg.type)) {
+                existingMsg.content += content;
+            } else {
+                // Otherwise add as a new message
+                this.messages.push({ type, content, id });
+            }
+            
+            // Scroll to bottom after rendering
+            this.$nextTick(() => {
+                const container = document.querySelector('.message-container');
+                container.scrollTop = container.scrollHeight;
+            });
+        },
+        
+        // Function to render markdown
+        renderMarkdown(text) {
+            if (!text) return '';
+            
+            // Configure marked options
+            marked.setOptions({
+                highlight: function(code, lang) {
+                    const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                    return hljs.highlight(code, { language }).value;
+                },
+                langPrefix: 'hljs language-',
+                gfm: true,
+                breaks: true
+            });
+            
+            return marked.parse(text);
+        },
+        
+        // Function to send a message
+        async sendMessage() {
+            if (!this.userMessage.trim() || this.isProcessing) return;
+            
+            // Add user message to UI
+            const msgId = 'user_' + Date.now();
+            this.addMessage('user', this.userMessage, msgId);
+            
+            const message = this.userMessage;
+            this.userMessage = '';
+            this.isProcessing = true;
+            
+            // Create form data for the request
+            const formData = new FormData();
+            formData.append('message', message);
+            
+            // Set up the SSE connection
+            const evtSource = new EventSource('/chat/stream?' + new URLSearchParams({
+                message: message
+            }));
+            
+            // Current message being built
+            let currentMsgId = null;
+            
+            // Handle messages from the server
+            evtSource.addEventListener('message', (event) => {
+                const data = JSON.parse(event.data);
+                currentMsgId = data.id;
+                this.addMessage(data.type, data.content, data.id);
+            });
+            
+            // Handle stats updates
+            evtSource.addEventListener('stats', (event) => {
+                const stats = JSON.parse(event.data);
+                this.sessionCost = stats.sessionCost;
+                
+                // Add stats message to UI
+                const statsMsg = `Tokens: ${stats.promptTokens} prompt, ${stats.completionTokens} completion | Cost: ${stats.cost} | Session: ${stats.sessionCost}`;
+                this.addMessage('stats', statsMsg, 'stats_' + Date.now());
+            });
+            
+            // Handle stream completion
+            evtSource.addEventListener('error', () => {
+                evtSource.close();
+                this.isProcessing = false;
+            });
+        },
+        
+        // Function to update model
+        async updateModel(event) {
+            const model = event.target.value;
+            
+            // Create form data for the request
+            const formData = new FormData();
+            formData.append('model', model);
+            
+            // Call the server to update the model
+            const response = await fetch('/set-model', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                this.model = model;
+                
+                // Show a notification
+                this.addMessage('system', `Model changed to ${model}`, 'system_' + Date.now());
+            }
+        },
+        
+        // Function to update thinking budget
+        async updateThinking() {
+            // Create form data for the request
+            const formData = new FormData();
+            formData.append('budget', parseInt(this.thinking) || 0);
+            
+            // Call the server to update the thinking budget
+            const response = await fetch('/set-thinking', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                this.thinking = result.thinking_budget;
+                
+                // Show message
+                const isEnabled = result.is_claude && result.thinking_budget > 0;
+                const status = isEnabled ? 'enabled' : 'disabled';
+                this.addMessage('system', `Thinking mode ${status} (${result.thinking_budget} tokens)`, 'system_' + Date.now());
+            }
+        },
+        
+        // Function to check if model is Claude
+        isClaudeModel() {
+            return this.model.toLowerCase().includes('claude');
+        }
+    }"
+    x-init="
+        // Load available tools
+        fetch('/available-tools')
+            .then(response => response.json())
+            .then(data => {
+                toolInfo = data.tools;
+            });
+    ">
+        <!-- Header with app title and controls -->
+        <header class="bg-white shadow rounded-lg p-4 mb-4">
+            <div class="flex flex-col md:flex-row md:items-center justify-between">
+                <h1 class="text-2xl font-bold text-gray-800 mb-4 md:mb-0">AI Toolchat</h1>
+                
+                <div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
+                    <!-- Model selector -->
+                    <div class="flex items-center">
+                        <label for="model-select" class="mr-2 text-gray-700">Model:</label>
+                        <select id="model-select" 
+                                class="border rounded p-2 bg-white text-gray-800"
+                                x-model="model"
+                                @change="updateModel($event)">
+                            {% for model_option in models %}
+                            <option value="{{ model_option }}">{{ model_option }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <!-- Thinking budget (only for Claude) -->
+                    <div class="flex items-center" x-show="isClaudeModel()">
+                        <label for="thinking-input" class="mr-2 text-gray-700">Thinking tokens:</label>
+                        <input type="number" 
+                               id="thinking-input" 
+                               class="border rounded p-2 w-24 bg-white text-gray-800"
+                               x-model="thinking"
+                               min="0"
+                               step="1024">
+                        <button @click="updateThinking()"
+                                class="ml-2 bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition">
+                            Set
+                        </button>
+                    </div>
+                    
+                    <!-- Session cost display -->
+                    <div class="flex items-center bg-gray-100 px-3 py-2 rounded">
+                        <span class="text-gray-700">Session Cost: </span>
+                        <span class="text-blue-600 font-medium ml-1" x-text="sessionCost"></span>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Main chat container -->
+        <div class="bg-white shadow rounded-lg p-4">
+            <!-- Messages display area -->
+            <div class="message-container mb-4 p-4 bg-gray-50 rounded-lg">
+                <!-- Message templates rendered by Alpine -->
+                <template x-for="(message, index) in messages" :key="index">
+                    <!-- User messages -->
+                    <div x-show="message.type === 'user'" class="mb-4">
+                        <div class="flex items-start">
+                            <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                                U
+                            </div>
+                            <div class="ml-2 px-4 py-2 bg-blue-100 rounded-lg">
+                                <p class="text-gray-800 whitespace-pre-wrap" x-text="message.content"></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Assistant messages -->
+                    <div x-show="message.type === 'assistant'" class="mb-4">
+                        <div class="flex items-start">
+                            <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-sm">
+                                A
+                            </div>
+                            <div class="ml-2 px-4 py-2 bg-gray-100 rounded-lg max-w-full">
+                                <div class="text-gray-800 markdown-content" x-html="renderMarkdown(message.content)"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Tool messages -->
+                    <div x-show="message.type === 'tool'" class="mb-4">
+                        <div class="flex items-start">
+                            <div class="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-sm">
+                                T
+                            </div>
+                            <div class="ml-2 px-4 py-2 bg-purple-100 rounded-lg max-w-full">
+                                <p class="text-purple-800 whitespace-pre-wrap font-mono text-sm" x-text="message.content"></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Thinking messages -->
+                    <div x-show="message.type === 'thinking'" class="mb-4">
+                        <div class="flex items-start">
+                            <div class="w-8 h-8 rounded-full bg-blue-400 flex items-center justify-center text-white font-bold text-sm">
+                                💭
+                            </div>
+                            <div class="ml-2 px-4 py-2 bg-blue-50 rounded-lg max-w-full">
+                                <p class="text-blue-800 whitespace-pre-wrap font-mono text-sm italic" x-text="message.content"></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Stats messages -->
+                    <div x-show="message.type === 'stats'" class="mb-4">
+                        <div class="w-full px-4 py-2 bg-gray-200 rounded-lg text-center">
+                            <p class="text-gray-600 text-sm" x-text="message.content"></p>
+                        </div>
+                    </div>
+                    
+                    <!-- System messages -->
+                    <div x-show="message.type === 'system'" class="mb-4">
+                        <div class="w-full px-4 py-2 bg-yellow-100 rounded-lg text-center">
+                            <p class="text-yellow-800 text-sm" x-text="message.content"></p>
+                        </div>
+                    </div>
+                    
+                    <!-- Error messages -->
+                    <div x-show="message.type === 'error'" class="mb-4">
+                        <div class="w-full px-4 py-2 bg-red-100 rounded-lg text-center">
+                            <p class="text-red-800 text-sm" x-text="message.content"></p>
+                        </div>
+                    </div>
+                </template>
+                
+                <!-- Loading indicator when processing -->
+                <div x-show="isProcessing" class="flex items-center justify-center my-4">
+                    <div class="px-4 py-2 bg-gray-100 rounded-lg thinking-animation">
+                        <div class="flex space-x-2">
+                            <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
+                            <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
+                            <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Empty state when no messages -->
+                <div x-show="messages.length === 0" class="flex flex-col items-center justify-center h-64 text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    <p class="text-lg">Ask a question to begin</p>
+                    <p class="text-sm mt-2">Available tools: <span x-text="toolInfo.join(', ')"></span></p>
+                </div>
+            </div>
+            
+            <!-- Message input form -->
+            <form @submit.prevent="sendMessage" class="flex items-center space-x-2">
+                <textarea
+                    x-model="userMessage"
+                    @keydown.enter.prevent="if(!$event.shiftKey) sendMessage()"
+                    placeholder="Type your message here..."
+                    class="flex-grow border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    :disabled="isProcessing"
+                    rows="2"
+                ></textarea>
+                <button
+                    type="submit"
+                    class="bg-blue-600 text-white rounded-lg px-4 py-3 hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="isProcessing || !userMessage.trim()"
+                >
+                    <span x-show="!isProcessing">Send</span>
+                    <span x-show="isProcessing">
+                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </span>
+                </button>
+            </form>
+        </div>
+        
+        <!-- Footer with available tools -->
+        <footer class="mt-6 text-center text-gray-600 text-sm">
+            <p>Available tools: <span x-text="toolInfo.join(', ')"></span></p>
+        </footer>
+    </div>
+</body>
+</html>
