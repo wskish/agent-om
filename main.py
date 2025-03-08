@@ -48,12 +48,14 @@ def main(toolfuncs : list[ToolFunctionType]):
     import sys
     from datetime import datetime
     
-    messages = [SystemMessage(
-        "We are assisting the user in a variety of tasks. Use available tools as appropriate. "
-        "Output in markdown format. Use tables for tabular data. "
-        "When using tools, explain to the user what tool you are using and a lay person description of the args. "
-        f"The current date is {datetime.utcnow().strftime('%Y-%m-%d')}."
-    )]
+    # System message as string
+    system_message = ("We are assisting the user in a variety of tasks. Use available tools as appropriate. "
+                     "Output in markdown format. Use tables for tabular data. "
+                     "When using tools, explain to the user what tool you are using and a lay person description of the args. "
+                     f"The current date is {datetime.utcnow().strftime('%Y-%m-%d')}.")
+                     
+    # Initialize empty messages list (no system message)
+    messages = []
         
     session_cost = 0
 
@@ -144,7 +146,8 @@ def main(toolfuncs : list[ToolFunctionType]):
                 "messages": [m.model_dump() for m in messages],
                 "tools": toolfuncs,
                 "model": model,
-                "log_func": clog
+                "log_func": clog,
+                "system_message": system_message
             }
             
             # Add thinking_budget for Claude models

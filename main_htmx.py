@@ -42,14 +42,14 @@ class ChatState:
 
 chat_state = ChatState()
 
-# Initialize with system message
-chat_state.messages = [{
-    "role": "system",
-    "content": "We are assisting the user in a variety of tasks. Use available tools as appropriate. "
-               "Output in markdown format. Use tables for tabular data. "
-               "When using tools, explain to the user what tool you are using and a lay person description of the args. "
-               f"The current date is {datetime.utcnow().strftime('%Y-%m-%d')}."
-}]
+# System message as string
+system_message = ("We are assisting the user in a variety of tasks. Use available tools as appropriate. "
+                 "Output in markdown format. Use tables for tabular data. "
+                 "When using tools, explain to the user what tool you are using and a lay person description of the args. "
+                 f"The current date is {datetime.utcnow().strftime('%Y-%m-%d')}.")
+
+# Initialize empty messages list (no system message)
+chat_state.messages = []
 
 # Available tools
 toolfuncs = [exec, psql, pdf_to_text]
@@ -78,12 +78,16 @@ async def stream_chat_response(user_message: str) -> AsyncGenerator[str, None]:
     # Message ID for the response
     msg_id = f"msg_{uuid.uuid4().hex[:12]}"
     
-    # Prepare kwargs for toolchat
+    # Create a copy of messages to avoid modifying the original
+    messages_copy = chat_state.messages.copy()
+    
+    # Prepare kwargs for toolchat with system message as a separate parameter
     toolchat_kwargs = {
-        "messages": chat_state.messages,
+        "messages": messages_copy,
         "tools": toolfuncs,
         "model": chat_state.model,
-        "log_func": clog
+        "log_func": clog,
+        "system_message": system_message
     }
     
     # Add thinking_budget for Claude models

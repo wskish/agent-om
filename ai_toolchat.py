@@ -103,18 +103,32 @@ def check_duplicate_tools(toolspecs : list[ChatCompletionToolParam]):
 async def toolchat(messages : list[ChatCompletionMessageParam],    # note: openai defines these input messages as typed dicts, not pydantic models
                    tools    : list[ToolFunctionType], 
                    model    : str,
-                   log_func : Optional[CompletionLoggerFunctionType] = None):
+                   log_func : Optional[CompletionLoggerFunctionType] = None,
+                   system_message: Optional[str] = None):
     """
     A streaming chat completion function that supports tool calls
     Emits a stream of chat completion messages to the user while internally handling tool calls.
     Note that the tool calls and tool responses are not exposed to the user.
     This means the subsequent user message context does not include the tool calls or tool responses, they
     are only visible within this loop (and in the logs if a log_func is provided). 
+    
+    Parameters:
+        messages: List of message objects (excluding system message)
+        tools: List of tool functions available for the model to use
+        model: The model identifier to use for completion
+        log_func: Optional function to log completion details
+        system_message: Optional system message as a string (preferred over messages[0])
+    
     # see example streaming tool call processing
     # https://github.com/Azure-Samples/azureai-assistant-tool/blob/7e4ec6fedfd165cd42273bc927329dab5aa4a22c/sdk/azure-ai-assistant/azure/ai/assistant/management/chat_assistant_client.py#L312   
     """                   
-    # convert our ToolFunctionsbjects to oai ChatCompletionToolParam objects
+    # convert our ToolFunctions objects to oai ChatCompletionToolParam objects
     toolspec = [toolfunc_to_toolspec(tool) for tool in tools]
+    
+    # Handle system message
+    messages_to_use = messages.copy()
+    if system_message is not None:
+        messages_to_use.insert(0, {"role": "system", "content": system_message})
     
     # we support maximum of 3 retries on error but note that we loop through here multiple times if there are tool calls to process
     # so that after each tool call the model has an opportunity to process the tool outputs and send response messages to the user.
@@ -132,11 +146,12 @@ async def toolchat(messages : list[ChatCompletionMessageParam],    # note: opena
         usage = None
         
         try:            
+            # For OpenAI, we've already included the system message in messages_to_use
             stream = await client.chat.completions.create(model=model, 
-                                                          messages=messages, 
-                                                          tools=toolspec, 
-                                                          stream=True, 
-                                                          stream_options={"include_usage": True})                                                        
+                                                     messages=messages_to_use, 
+                                                     tools=toolspec, 
+                                                     stream=True, 
+                                                     stream_options={"include_usage": True})                                                        
             async for chunk in stream:       
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if chunk.usage:             
@@ -191,7 +206,7 @@ async def toolchat(messages : list[ChatCompletionMessageParam],    # note: opena
         # log the results of the completion request 
         if log_func: 
             log_func(CompletionLog(model=model, 
-                                   messages=messages,
+                                   messages=messages_to_use,  # Use the messages that were actually sent
                                    tools=toolspec, 
                                    temperature=0, 
                                    chat_completion=chat_response_content, 
@@ -212,12 +227,16 @@ async def toolchat(messages : list[ChatCompletionMessageParam],    # note: opena
             assistant_tool_response_message = ChatCompletionAssistantMessageParam(role="assistant", tool_calls=tool_calls)                        
 
         if chat_response_content:
-            messages.append(assistant_chat_response_message)
+            messages_to_use.append(assistant_chat_response_message)
+            if system_message is None:
+                messages.append(assistant_chat_response_message)
 
         if tool_calls:
             # add the ChatCompletionMessageToolCall to the message stack manually as they were streamed
             # this is needed to provide model context for subsequent completions            
-             messages.append(assistant_tool_response_message)        
+            messages_to_use.append(assistant_tool_response_message)
+            if system_message is None:
+                messages.append(assistant_tool_response_message)
         
         if not tool_calls:
             break  # return when there are no more tool calls to process
@@ -259,7 +278,10 @@ async def toolchat(messages : list[ChatCompletionMessageParam],    # note: opena
                 # this is a bad, unexpected error in the tool    
                 logger.exception(e) 
                 tool_result = f"Error executing tool '{toolfunc.__name__}': {e}"                
-            messages.append(ChatCompletionToolMessageParam(tool_call_id=tc.id, content=tool_result, role='tool'))   # let the model know what happened                
+            tool_message = ChatCompletionToolMessageParam(tool_call_id=tc.id, content=tool_result, role='tool')
+            messages_to_use.append(tool_message)  # let the model know what happened
+            if system_message is None:
+                messages.append(tool_message)                
         yield '\n'   # XXX
         # continue into while loop for another round of completions
     # end of main while loop

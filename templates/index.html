@@ -102,8 +102,20 @@
             id = String(id).trim();
             content = String(content || '');
             
-            // If this is a continuation of an existing message, update it properly for Alpine reactivity
+            // Find if there's an existing message with this ID
             const index = this.messages.findIndex(m => m.id === id);
+            
+            // Handle transition from thinking to assistant
+            // If we receive an assistant message with the same ID as a thinking message,
+            // we should create a new assistant message and keep the thinking message
+            if (index !== -1 && this.messages[index].type === 'thinking' && type === 'assistant') {
+                // Create a new assistant message
+                const newMsg = { type, content, id: id + '_assistant' };
+                this.messages = [...this.messages, newMsg];
+                return;
+            }
+            
+            // Regular continuation logic
             if (index !== -1 && (type === 'assistant' || type === this.messages[index].type)) {
                 // Create a new object with updated content to trigger Alpine reactivity
                 const oldMsg = this.messages[index];

@@ -49,13 +49,22 @@ async def toolchat( messages: list[dict],
                     tools: list[ToolFunctionType],
                     model: str,
                     log_func: Optional[CompletionLoggerFunctionType] = None,
-                    thinking_budget: int = 0):
+                    thinking_budget: int = 0,
+                    system_message: Optional[str] = None):
     """
     A streaming chat completion function that supports tool calls for Claude
     Emits a stream of chat completion messages while handling tool calls internally
     Note that the tool calls and tool responses are not exposed to the user.
     This means the subsequent user message context does not include the tool calls or tool responses, they
-    are only visible within this loop (and in the logs if a log_func is provided).     
+    are only visible within this loop (and in the logs if a log_func is provided).
+    
+    Parameters:
+        messages: List of message objects (excluding system message)
+        tools: List of tool functions available for the model to use
+        model: The model identifier to use for completion
+        log_func: Optional function to log completion details
+        thinking_budget: Optional token budget for Claude's thinking feature
+        system_message: Optional system message as a string
     """
 
     # convert our ToolFunctions to claude tool specs
@@ -63,9 +72,8 @@ async def toolchat( messages: list[dict],
     retries = 0
     loops = 0
 
-    system_message = None
-    if messages[0]['role'] == 'system':
-        system_message = messages.pop(0)['content']
+    # Handle system message from the messages list if not provided explicitly
+    messages_to_use = messages.copy()
 
     max_tokens = 8192
     thinking = None
@@ -88,7 +96,7 @@ async def toolchat( messages: list[dict],
             if thinking:
                 stream = await client.messages.create(  system=system_message,
                                                         model=model,
-                                                        messages=messages,
+                                                        messages=messages_to_use,
                                                         tools=toolspec,
                                                         max_tokens=max_tokens,
                                                         thinking=thinking,
@@ -96,7 +104,7 @@ async def toolchat( messages: list[dict],
             else:
                 stream = await client.messages.create(  system=system_message,
                                                         model=model,
-                                                        messages=messages,
+                                                        messages=messages_to_use,
                                                         tools=toolspec,
                                                         max_tokens=max_tokens,
                                                         stream=True)            
@@ -153,7 +161,7 @@ async def toolchat( messages: list[dict],
         # log the results of the completion if a log_func is provided
         if log_func:
             log_func(CompletionLog( model=model,
-                                    messages=messages,
+                                    messages=messages_to_use,
                                     tools=toolspec,
                                     temperature=0,
                                     chat_completion=" ".join(textblocks),
@@ -164,8 +172,10 @@ async def toolchat( messages: list[dict],
         if not tooluseblocks:
             break  # return when there are no more tool calls to process
 
-        # capture the assistmant messages back onto the message list for subsequent completions
-        messages.append({"role": "assistant", "content": [c for c in content_blocks]})
+        # capture the assistant messages back onto the message list for subsequent completions
+        messages_to_use.append({"role": "assistant", "content": [c for c in content_blocks]})
+        if messages is not messages_to_use:
+            messages.append({"role": "assistant", "content": [c for c in content_blocks]})
         
         # reset the toolspec to the original list (e.g. remove any tools that were added by previous tool calls)
         toolspec = [toolfunc_to_toolspec(tool) for tool in tools]      
@@ -210,7 +220,9 @@ async def toolchat( messages: list[dict],
                                             content     = tool_result,
                                             is_error    = is_error)   
             toolcontents.append(tresult)     
-        messages.append({'role':'user', 'content':toolcontents})
+        messages_to_use.append({'role':'user', 'content':toolcontents})
+        if messages is not messages_to_use:
+            messages.append({'role':'user', 'content':toolcontents})
         yield '\n'   # XXX
         # continue into while loop for another round of completions
     # end of main while loop        
