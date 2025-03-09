@@ -8,6 +8,61 @@
 
     <!-- Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        },
+                        secondary: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            200: '#ddd6fe',
+                            300: '#c4b5fd',
+                            400: '#a78bfa',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            800: '#5b21b6',
+                            900: '#4c1d95',
+                        },
+                        neutral: {
+                            50: '#fafafa',
+                            100: '#f5f5f5',
+                            200: '#e5e5e5',
+                            300: '#d4d4d4',
+                            400: '#a3a3a3',
+                            500: '#737373',
+                            600: '#525252',
+                            700: '#404040',
+                            800: '#262626',
+                            900: '#171717',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['Fira Code', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -19,7 +74,7 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
     <!-- Highlight.js for code syntax highlighting -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/nord.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     
     <!-- Custom styles -->
@@ -85,7 +140,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 font-sans">
+<body class="bg-neutral-50 font-sans">
     <div class="container mx-auto px-4 py-8" x-data="{
         userMessage: '',
         isProcessing: false,
@@ -330,16 +385,18 @@
         this.toolInfo = '{{ available_tools }}'.split(', ');
     ">
         <!-- Header with app title and controls -->
-        <header class="bg-white shadow rounded-lg p-4 mb-4">
+        <header class="bg-white shadow-sm rounded-xl p-5 mb-6 border border-neutral-200">
             <div class="flex flex-col md:flex-row md:items-center justify-between">
-                <h1 class="text-2xl font-bold text-gray-800 mb-4 md:mb-0">Agent Om</h1>
+                <h1 class="text-2xl font-bold text-neutral-800 mb-4 md:mb-0">
+                    <span class="text-primary-600">Agent</span> Om
+                </h1>
                 
                 <div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
                     <!-- Model selector -->
                     <div class="flex items-center">
-                        <label for="model-select" class="mr-2 text-gray-700">Model:</label>
+                        <label for="model-select" class="mr-2 text-neutral-600 font-medium">Model:</label>
                         <select id="model-select" 
-                                class="border rounded p-2 bg-white text-gray-800"
+                                class="border border-neutral-300 rounded-lg p-2 bg-white text-neutral-800 focus:ring-2 focus:ring-primary-400 focus:outline-none transition"
                                 x-model="model"
                                 @change="updateModel($event)">
                             {% for model_option in models %}
@@ -350,10 +407,10 @@
                     
                     <!-- Thinking budget (only for Claude) -->
                     <div class="flex items-center" x-show="isClaudeModel()">
-                        <label for="thinking-input" class="mr-2 text-gray-700">Thinking tokens:</label>
+                        <label for="thinking-input" class="mr-2 text-neutral-600 font-medium">Thinking:</label>
                         <input type="number" 
                                id="thinking-input" 
-                               class="border rounded p-2 w-24 bg-white text-gray-800"
+                               class="border border-neutral-300 rounded-lg p-2 w-24 bg-white text-neutral-800 focus:ring-2 focus:ring-primary-400 focus:outline-none transition"
                                x-model="thinking"
                                @input="updateThinking()"
                                min="0"
@@ -363,25 +420,28 @@
                     <!-- Clear conversation button -->
                     <div class="flex items-center">
                         <button @click="clearConversation()"
-                                class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 transition"
+                                class="bg-neutral-100 border border-neutral-300 text-neutral-700 px-4 py-2 rounded-lg hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400 focus:outline-none transition-all flex items-center space-x-1"
                                 :disabled="isProcessing">
-                            Clear Chat
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            <span>Clear</span>
                         </button>
                     </div>
                     
                     <!-- Session cost display -->
-                    <div class="flex items-center bg-gray-100 px-3 py-2 rounded">
-                        <span class="text-gray-700">Session Cost: </span>
-                        <span class="text-blue-600 font-medium ml-1" x-text="sessionCost"></span>
+                    <div class="flex items-center bg-primary-50 border border-primary-200 px-4 py-2 rounded-lg">
+                        <span class="text-neutral-700 font-medium">Cost: </span>
+                        <span class="text-primary-600 font-semibold ml-1" x-text="sessionCost"></span>
                     </div>
                 </div>
             </div>
         </header>
         
         <!-- Main chat container -->
-        <div class="bg-white shadow rounded-lg p-4">
+        <div class="bg-white shadow-sm rounded-xl p-5 border border-neutral-200">
             <!-- Messages display area -->
-            <div class="message-container mb-4 p-4 bg-gray-50 rounded-lg">
+            <div class="message-container mb-5 p-4 bg-neutral-50 rounded-xl border border-neutral-200">
                 
                 <!-- Message templates rendered by Alpine -->
                 <template x-for="message in messages" :key="message.id">
@@ -389,98 +449,103 @@
                         <!-- SWITCHER -->
                         <template x-if="message.type === 'user'">
                             <div class="flex items-start">
-                                <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">U</div>
-                                <div class="ml-2 px-4 py-2 bg-blue-100 rounded-lg">
-                                    <p class="text-gray-800 whitespace-pre-wrap" x-text="message.content"></p>
+                                <div class="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold text-sm shadow-sm">U</div>
+                                <div class="ml-3 px-4 py-3 bg-primary-50 border border-primary-200 rounded-xl shadow-sm">
+                                    <p class="text-neutral-800 whitespace-pre-wrap" x-text="message.content"></p>
                                 </div>
                             </div>
                         </template>
                         
                         <template x-if="message.type === 'assistant'">
                             <div class="flex items-start">
-                                <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-sm">A</div>
-                                <div class="ml-2 px-4 py-2 bg-gray-100 rounded-lg max-w-full">
-                                    <div class="text-gray-800 markdown-content" x-html="renderMarkdown(message.content)"></div>
+                                <div class="w-8 h-8 rounded-full bg-neutral-600 flex items-center justify-center text-white font-semibold text-sm shadow-sm">A</div>
+                                <div class="ml-3 px-4 py-3 bg-white border border-neutral-200 rounded-xl shadow-sm max-w-full">
+                                    <div class="text-neutral-800 markdown-content" x-html="renderMarkdown(message.content)"></div>
                                 </div>
                             </div>
                         </template>
                         
                         <template x-if="message.type === 'tool'">
                             <div class="flex items-start">
-                                <div class="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-sm">T</div>
-                                <div class="ml-2 px-4 py-2 bg-purple-100 rounded-lg max-w-full">
-                                    <p class="text-purple-800 whitespace-pre-wrap font-mono text-sm" x-text="message.content"></p>
+                                <div class="w-8 h-8 rounded-full bg-secondary-500 flex items-center justify-center text-white font-semibold text-sm shadow-sm">T</div>
+                                <div class="ml-3 px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-xl shadow-sm max-w-full">
+                                    <p class="text-secondary-700 whitespace-pre-wrap font-mono text-sm" x-text="message.content"></p>
                                 </div>
                             </div>
                         </template>
                         
                         <template x-if="message.type === 'thinking'">
                             <div class="flex items-start">
-                                <div class="w-8 h-8 rounded-full bg-blue-400 flex items-center justify-center text-white font-bold text-sm">💭</div>
-                                <div class="ml-2 px-4 py-2 bg-blue-50 rounded-lg max-w-full">
-                                    <p class="text-blue-800 whitespace-pre-wrap font-mono text-sm italic" x-text="message.content"></p>
+                                <div class="w-8 h-8 rounded-full bg-primary-400 flex items-center justify-center text-white font-semibold text-sm shadow-sm">💭</div>
+                                <div class="ml-3 px-4 py-3 bg-primary-50 border border-primary-100 rounded-xl shadow-sm max-w-full">
+                                    <p class="text-primary-700 whitespace-pre-wrap font-mono text-sm italic" x-text="message.content"></p>
                                 </div>
                             </div>
                         </template>
                         
                         <template x-if="message.type === 'stats'">
-                            <div class="w-full px-4 py-2 bg-gray-200 rounded-lg text-center">
-                                <p class="text-gray-600 text-sm" x-text="message.content"></p>
+                            <div class="w-full px-4 py-3 bg-neutral-100 border border-neutral-200 rounded-xl text-center shadow-sm my-2">
+                                <p class="text-neutral-600 text-sm font-medium" x-text="message.content"></p>
                             </div>
                         </template>
                         
                         <template x-if="message.type === 'system'">
-                            <div class="w-full px-4 py-2 bg-yellow-100 rounded-lg text-center">
-                                <p class="text-yellow-800 text-sm" x-text="message.content"></p>
+                            <div class="w-full px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-center shadow-sm my-2">
+                                <p class="text-amber-700 text-sm font-medium" x-text="message.content"></p>
                             </div>
                         </template>
                         
                         <template x-if="message.type === 'error'">
-                            <div class="w-full px-4 py-2 bg-red-100 rounded-lg text-center">
-                                <p class="text-red-800 text-sm" x-text="message.content"></p>
+                            <div class="w-full px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-center shadow-sm my-2">
+                                <p class="text-red-700 text-sm font-medium" x-text="message.content"></p>
                             </div>
                         </template>
                     </div>
                 </template>
                 
                 <!-- Loading indicator when processing -->
-                <div x-show="isProcessing" class="flex items-center justify-center my-4">
-                    <div class="px-4 py-2 bg-gray-100 rounded-lg thinking-animation">
-                        <div class="flex space-x-2">
-                            <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
-                            <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
-                            <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
+                <div x-show="isProcessing" class="flex items-center justify-center my-6">
+                    <div class="px-5 py-3 bg-white border border-neutral-200 rounded-xl shadow-sm thinking-animation">
+                        <div class="flex space-x-3">
+                            <div class="w-2.5 h-2.5 bg-primary-400 rounded-full"></div>
+                            <div class="w-2.5 h-2.5 bg-primary-400 rounded-full"></div>
+                            <div class="w-2.5 h-2.5 bg-primary-400 rounded-full"></div>
                         </div>
                     </div>
                 </div>
                 
                 
                 <!-- Empty state when no messages -->
-                <div x-show="messages.length === 0" class="flex flex-col items-center justify-center h-64 text-gray-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                <div x-show="messages.length === 0" class="flex flex-col items-center justify-center h-64 text-neutral-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-5 text-primary-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                     </svg>
-                    <p class="text-lg">Ask a question to begin</p>
-                    <p class="text-sm mt-2">Available tools: {{ available_tools }}</p>
+                    <p class="text-lg font-medium text-neutral-700 mb-2">Ask a question to begin</p>
+                    <p class="text-neutral-500 text-sm bg-neutral-100 px-4 py-2 rounded-lg border border-neutral-200">Available tools: {{ available_tools }}</p>
                 </div>
             </div>
             
             <!-- Message input form -->
-            <form @submit.prevent="sendMessage" class="flex items-center space-x-2">
+            <form @submit.prevent="sendMessage" class="flex items-center space-x-3">
                 <textarea
                     x-model="userMessage"
                     @keydown.enter.prevent="if(!$event.shiftKey) sendMessage()"
                     placeholder="Type your message here..."
-                    class="flex-grow border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    class="flex-grow border border-neutral-300 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 shadow-sm resize-none"
                     :disabled="isProcessing"
                     rows="2"
                 ></textarea>
                 <button
                     type="submit"
-                    class="bg-blue-600 text-white rounded-lg px-4 py-3 hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="bg-primary-600 text-white rounded-xl px-5 py-3 hover:bg-primary-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     :disabled="isProcessing || !userMessage.trim()"
                 >
-                    <span x-show="!isProcessing">Send</span>
+                    <span x-show="!isProcessing" class="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                        Send
+                    </span>
                     <span x-show="isProcessing">
                         <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -492,8 +557,10 @@
         </div>
         
         <!-- Footer with available tools -->
-        <footer class="mt-6 text-center text-gray-600 text-sm">
-            <p>Available tools: {{ available_tools }}</p>
+        <footer class="mt-6 text-center text-neutral-500 text-sm">
+            <p class="bg-white border border-neutral-200 rounded-lg py-2 px-4 inline-block shadow-sm">
+                Available tools: <span class="font-medium text-primary-600">{{ available_tools }}</span>
+            </p>
         </footer>
     </div>
 </body>
