@@ -167,6 +167,10 @@ async def stream_chat_response(user_message: str) -> AsyncGenerator[str, None]:
 @app.get("/")
 async def get_chat_page(request: Request):
     """Render the main chat interface."""
+    # Log available tools for debugging
+    tool_names = [tool.__name__ for tool in toolfuncs]
+    print(f"Tools available at page load: {tool_names}")
+    
     return templates.TemplateResponse("index.html", {
         "request": request,
         "model": chat_state.model,
@@ -179,7 +183,9 @@ async def get_chat_page(request: Request):
             "claude-3-7-sonnet-20250219",
             "o1-2024-12-17",
             "o3-mini-2025-01-31"
-        ]
+        ],
+        # Pre-render tools for immediate display
+        "available_tools": ", ".join(tool_names)
     })
 
 @app.get("/chat/stream")
@@ -225,8 +231,10 @@ async def set_thinking(budget: int = Form(...)):
 @app.get("/available-tools")
 async def get_available_tools():
     """Return a list of available tools."""
+    tool_names = [tool.__name__ for tool in toolfuncs]
+    print(f"Available tools: {tool_names}")  # Debug print
     return {
-        "tools": [tool.__name__ for tool in toolfuncs]
+        "tools": tool_names
     }
 
 if __name__ == "__main__":
