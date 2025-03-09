@@ -260,27 +260,40 @@
             }
         },
         
-        // Function to update thinking budget
+        // Variable to store timeout ID for debouncing
+        thinkingUpdateTimeout: null,
+        
+        // Function to update thinking budget with debouncing
         async updateThinking() {
-            // Create form data for the request
-            const formData = new FormData();
-            formData.append('budget', parseInt(this.thinking) || 0);
-            
-            // Call the server to update the thinking budget
-            const response = await fetch('/set-thinking', {
-                method: 'POST',
-                body: formData
-            });
-            
-            const result = await response.json();
-            if (result.success) {
-                this.thinking = result.thinking_budget;
-                
-                // Show message
-                const isEnabled = result.is_claude && result.thinking_budget > 0;
-                const status = isEnabled ? 'enabled' : 'disabled';
-                this.addMessage('system', `Thinking mode ${status} (${result.thinking_budget} tokens)`, 'system_' + Date.now());
+            // Clear any existing timeout
+            if (this.thinkingUpdateTimeout) {
+                clearTimeout(this.thinkingUpdateTimeout);
             }
+            
+            // Set new timeout to avoid multiple rapid requests
+            this.thinkingUpdateTimeout = setTimeout(async () => {
+                // Create form data for the request
+                const formData = new FormData();
+                formData.append('budget', parseInt(this.thinking) || 0);
+                
+                // Call the server to update the thinking budget
+                const response = await fetch('/set-thinking', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    this.thinking = result.thinking_budget;
+                    
+                    // Only show message for significant changes
+                    if (result.significant_change) {
+                        const isEnabled = result.is_claude && result.thinking_budget > 0;
+                        const status = isEnabled ? 'enabled' : 'disabled';
+                        this.addMessage('system', `Thinking mode ${status} (${result.thinking_budget} tokens)`, 'system_' + Date.now());
+                    }
+                }
+            }, 500); // 500ms debounce time
         },
         
         // Function to check if model is Claude
@@ -289,6 +302,9 @@
         }
     }"
     x-init="
+        // Initialize the timeout
+        this.thinkingUpdateTimeout = null;
+        
         // Load available tools
         fetch('/available-tools')
             .then(response => response.json())
@@ -322,12 +338,9 @@
                                id="thinking-input" 
                                class="border rounded p-2 w-24 bg-white text-gray-800"
                                x-model="thinking"
+                               @input="updateThinking()"
                                min="0"
                                step="1024">
-                        <button @click="updateThinking()"
-                                class="ml-2 bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition">
-                            Set
-                        </button>
                     </div>
                     
                     <!-- Session cost display -->

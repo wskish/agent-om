@@ -200,15 +200,26 @@ async def set_model(model: str = Form(...)):
 async def set_thinking(budget: int = Form(...)):
     """Update the thinking budget."""
     # Ensure minimum budget of 1024 tokens for Claude models
-    if budget < 1024 and "claude" in chat_state.model.lower():
+    if budget > 0 and budget < 1024 and "claude" in chat_state.model.lower():
         budget = 1024
     
+    # Track if this is a significant change to reduce system message noise
+    significant_change = abs(chat_state.thinking_budget - budget) > 1024
+    
+    # Store previous state to determine if turning on/off
+    was_on = chat_state.thinking_budget > 0
+    is_on = budget > 0
+    state_change = was_on != is_on
+    
+    # Update the budget
     chat_state.thinking_budget = budget
+    
     return {
         "success": True, 
         "thinking_budget": budget,
         "model": chat_state.model,
-        "is_claude": "claude" in chat_state.model.lower()
+        "is_claude": "claude" in chat_state.model.lower(),
+        "significant_change": significant_change or state_change
     }
 
 @app.get("/available-tools")
