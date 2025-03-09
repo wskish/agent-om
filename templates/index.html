@@ -73,9 +73,18 @@
     <!-- Marked for markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
-    <!-- Highlight.js for code syntax highlighting -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/nord.min.css">
+    <!-- Highlight.js for code syntax highlighting - using a more readable light theme -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script>
+        // Initialize highlight.js
+        document.addEventListener('DOMContentLoaded', () => {
+            hljs.configure({
+                languages: ['javascript', 'python', 'bash', 'json', 'html', 'css', 'typescript', 'sql', 'markdown'],
+                ignoreUnescapedHTML: true
+            });
+        });
+    </script>
     
     <!-- Custom styles -->
     <style>
@@ -102,30 +111,86 @@
         
         /* Markdown styling */
         .markdown-content pre {
-            background-color: #1e1e1e;
+            background-color: #f8f9fa;
             padding: 1rem;
             border-radius: 0.5rem;
             overflow-x: auto;
+            border: 1px solid #e5e7eb;
+            margin: 1rem 0;
+        }
+        
+        .markdown-content pre code {
+            color: #1f2937;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
         }
         
         .markdown-content code {
-            font-family: monospace;
+            font-family: 'Fira Code', monospace;
+            background-color: #f3f4f6;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-size: 0.9rem;
+            color: #4b5563;
+            border: 1px solid #e5e7eb;
         }
         
+        /* Add better spacing for code blocks */
+        .markdown-content p code {
+            margin: 0 0.2rem;
+        }
+        
+        /* Ensure inline code is visible */
+        .markdown-content p code {
+            background-color: #f3f4f6;
+            color: #4b5563;
+        }
+        
+        /* For triple backtick blocks without language specification */
+        .markdown-content pre code.hljs {
+            background-color: #f8f9fa;
+            color: #1f2937;
+            padding: 1rem;
+            display: block;
+            overflow-x: auto;
+        }
+        
+        /* Ensure all code blocks have proper coloring even when highlight.js fails */
+        .markdown-content pre code:not(.hljs) {
+            background-color: #f8f9fa;
+            color: #1f2937;
+            display: block;
+            padding: 1rem;
+        }
+        
+        /* Specific style for blocks with no language */
+        .markdown-content pre code.language-text,
+        .markdown-content pre code.language-plaintext {
+            background-color: #f8f9fa;
+            color: #1f2937;
+        }
+        
+        /* Table styling */
         .markdown-content table {
             border-collapse: collapse;
             width: 100%;
             margin: 1rem 0;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            overflow: hidden;
         }
         
         .markdown-content th, .markdown-content td {
-            border: 1px solid #ddd;
-            padding: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 0.75rem 1rem;
             text-align: left;
         }
         
         .markdown-content th {
-            background-color: #f2f2f2;
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #4b5563;
         }
         
         /* Animation for loading */
@@ -205,19 +270,49 @@
             });
         },
         
-        // Function to render markdown
+        // Function to render markdown with proper code highlighting
         renderMarkdown(text) {
             if (!text) return '';
             
             try {
-                // Configure basic marked options
+                // Configure marked options with highlight.js integration
                 marked.setOptions({
                     gfm: true,
-                    breaks: true
+                    breaks: true,
+                    highlight: function(code, lang) {
+                        // Use highlight.js for syntax highlighting
+                        if (lang && hljs.getLanguage(lang)) {
+                            try {
+                                return hljs.highlight(code, { language: lang }).value;
+                            } catch (err) {
+                                console.error('Highlight.js error:', err);
+                            }
+                        }
+                        
+                        // Fallback to auto-detection
+                        try {
+                            return hljs.highlightAuto(code).value;
+                        } catch (err) {
+                            console.error('Highlight.js auto-detect error:', err);
+                        }
+                        
+                        // Fallback to no highlighting
+                        return code;
+                    }
                 });
                 
-                return marked.parse(String(text));
+                const parsed = marked.parse(String(text));
+                
+                // After rendering, call highlight on the rendered HTML to apply to any code elements
+                this.$nextTick(() => {
+                    document.querySelectorAll('.markdown-content pre code').forEach((block) => {
+                        hljs.highlightElement(block);
+                    });
+                });
+                
+                return parsed;
             } catch (error) {
+                console.error('Markdown rendering error:', error);
                 // Fallback: escape HTML and return as plain text
                 return String(text)
                     .replace(/&/g, '&amp;')
