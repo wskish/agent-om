@@ -150,8 +150,8 @@ async def stream_chat_response(user_message: str) -> AsyncGenerator[str, None]:
                 "calls": calls,
                 "promptTokens": prompt_tokens,
                 "completionTokens": completion_tokens,
-                "cost": f"${cost_val:.4f}",
-                "sessionCost": f"${chat_state.session_cost:.4f}"
+                "cost": f"${cost_val:.2f}",
+                "sessionCost": f"${chat_state.session_cost:.2f}"
             }
             
             yield f"event: stats\ndata: {json.dumps(stats)}\n\n"
@@ -175,7 +175,7 @@ async def get_chat_page(request: Request):
         "request": request,
         "model": chat_state.model,
         "thinking_budget": chat_state.thinking_budget,
-        "session_cost": f"${chat_state.session_cost:.4f}",
+        "session_cost": f"${chat_state.session_cost:.2f}",
         "models": [
             "gpt-4o",
             "gpt-4o-mini",
@@ -235,6 +235,21 @@ async def get_available_tools():
     print(f"Available tools: {tool_names}")  # Debug print
     return {
         "tools": tool_names
+    }
+
+@app.post("/clear-conversation")
+async def clear_conversation():
+    """Clear the current conversation history."""
+    # Reset the messages but keep the model and settings
+    chat_state.messages = []
+    
+    # Keep the session cost to track total cost across conversations
+    # If you want to reset session cost as well, uncomment the next line
+    # chat_state.session_cost = 0.0
+    
+    return {
+        "success": True,
+        "message": "Conversation cleared"
     }
 
 if __name__ == "__main__":

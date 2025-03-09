@@ -299,6 +299,27 @@
         // Function to check if model is Claude
         isClaudeModel() {
             return this.model.toLowerCase().includes('claude');
+        },
+        
+        // Function to clear the conversation
+        async clearConversation() {
+            if (this.isProcessing) {
+                return;
+            }
+            
+            // Call the server to clear the conversation
+            const response = await fetch('/clear-conversation', {
+                method: 'POST'
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                // Clear the messages array
+                this.messages = [];
+                
+                // Show confirmation
+                this.addMessage('system', 'Conversation cleared', 'system_' + Date.now());
+            }
         }
     }"
     x-init="
@@ -337,6 +358,15 @@
                                @input="updateThinking()"
                                min="0"
                                step="1024">
+                    </div>
+                    
+                    <!-- Clear conversation button -->
+                    <div class="flex items-center">
+                        <button @click="clearConversation()"
+                                class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 transition"
+                                :disabled="isProcessing">
+                            Clear Chat
+                        </button>
                     </div>
                     
                     <!-- Session cost display -->
